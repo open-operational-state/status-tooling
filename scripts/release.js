@@ -100,9 +100,11 @@ const currentVersion = readPkg( 'types' ).data.version;
 const newVersion = bumpVersion( currentVersion, bump );
 console.log( `\n📦 Releasing: ${currentVersion} → ${newVersion}\n` );
 
-// 3. Bump all package.json files
+// 3. Bump all package.json files (save originals for dry-run rollback)
+const originals = new Map();
 for ( const name of PACKAGES ) {
     const { path, data } = readPkg( name );
+    originals.set( path, readFileSync( path, 'utf-8' ) );
     data.version = newVersion;
 
     // Update internal dependency references
@@ -151,6 +153,11 @@ if ( doPublish ) {
     run( 'git push && git push --tags' );
     console.log( `\n✅ Released v${newVersion}\n` );
 } else {
-    console.log( `\n✅ Dry run complete. To publish for real:\n` );
-    console.log( `  node scripts/release.js ${bump} --publish\n` );
+    // Restore original package.json files after dry-run
+    for ( const [ path, content ] of originals ) {
+        writeFileSync( path, content );
+    }
+    console.log( `\n✅ Dry run complete (package.json files restored). To publish for real:\n` );
+    console.log( `  bun scripts/release.js ${bump} --publish\n` );
 }
+
