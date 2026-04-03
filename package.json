@@ -13,6 +13,7 @@
     "typecheck": "bun run --filter '*' typecheck"
   },
   "devDependencies": {
+    "@types/bun": "^1.2.0",
     "typescript": "^5.8.0"
   },
   "engines": {
