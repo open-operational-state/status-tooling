@@ -49,6 +49,10 @@ oos inspect <file>        # Parse a JSON file, pretty-print core model
 
 See the [validator README](packages/validator/README.md) for full CLI documentation.
 
+## Examples
+
+See [examples/](examples/) for real-world usage patterns — Express, Hono, `safeParse()`, discovery, and component aggregation in ~10 lines each.
+
 ## Supported Formats
 
 | Format | Content-Type | Adapter |
