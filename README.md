@@ -35,7 +35,7 @@ npx @open-operational-state/validator probe https://your-api.com/health
 
 ## Overview
 
-This monorepo contains shared packages for parsing, emitting, validating, and discovering operational-state resources. All packages are written in TypeScript, use ESM, and are managed with Bun workspaces.
+This monorepo is the source for the `@open-operational-state` npm packages — a complete toolkit for parsing, emitting, validating, and discovering operational-state resources. All packages are published to npm, written in TypeScript, and use ESM.
 
 ## Packages
 
