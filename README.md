@@ -2,6 +2,37 @@
 
 Vendor-neutral reference tooling for the [Open Operational State](https://github.com/open-operational-state) standard.
 
+[![npm](https://img.shields.io/npm/v/@open-operational-state/core)](https://www.npmjs.com/org/open-operational-state)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+
+## Install
+
+```bash
+npm install @open-operational-state/core @open-operational-state/emitter
+```
+
+```js
+import { normalizeSnapshot } from '@open-operational-state/core';
+import { emitHealthResponse, suggestHttpStatus } from '@open-operational-state/emitter';
+
+app.get( '/health', ( req, res ) => {
+    const snapshot = normalizeSnapshot( {
+        condition: 'operational',
+        profiles: [ 'health' ],
+        subject: { id: 'my-api' },
+        timing: { observed: new Date().toISOString() },
+    } );
+
+    res.status( suggestHttpStatus( snapshot ) ).json( emitHealthResponse( snapshot ) );
+} );
+```
+
+Or parse any existing health endpoint into the common model:
+
+```bash
+npx @open-operational-state/validator probe https://your-api.com/health
+```
+
 ## Overview
 
 This monorepo contains shared packages for parsing, emitting, validating, and discovering operational-state resources. All packages are written in TypeScript, use ESM, and are managed with Bun workspaces.
@@ -10,14 +41,14 @@ This monorepo contains shared packages for parsing, emitting, validating, and di
 
 | Package | Purpose | Version |
 |---|---|---|
-| [`@open-operational-state/types`](packages/types/) | Canonical TypeScript types for the core model | 0.1.0 |
-| [`@open-operational-state/core`](packages/core/) | Core model logic, normalization, validation | 0.1.0 |
-| [`@open-operational-state/parser`](packages/parser/) | Response parsers and format adapters | 0.1.0 |
-| [`@open-operational-state/emitter`](packages/emitter/) | Wire format emitters | 0.1.0 |
-| [`@open-operational-state/validator`](packages/validator/) | Conformance validation and `oos` CLI | 0.1.0 |
-| [`@open-operational-state/discovery`](packages/discovery/) | Discovery client (Link headers, well-known) | 0.1.0 |
+| [`@open-operational-state/types`](packages/types/) | Canonical TypeScript types for the core model | 0.1.1 |
+| [`@open-operational-state/core`](packages/core/) | Core model logic, normalization, validation | 0.1.1 |
+| [`@open-operational-state/parser`](packages/parser/) | Response parsers and format adapters | 0.1.1 |
+| [`@open-operational-state/emitter`](packages/emitter/) | Wire format emitters | 0.1.1 |
+| [`@open-operational-state/validator`](packages/validator/) | Conformance validation and `oos` CLI | 0.1.1 |
+| [`@open-operational-state/discovery`](packages/discovery/) | Discovery client (Link headers, well-known) | 0.1.1 |
 
-## Quick Start
+## Development
 
 ```bash
 # Install dependencies
