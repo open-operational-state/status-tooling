@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## [Unreleased]
+
+### Added
+- **probe**: `headers` field on `ProbeResult` — response headers as `Record<string, string>`, or `null` on connection failure.
+- **probe**: `durationMs` field on `ProbeResult` — round-trip timing (fetch start → response body read).
+- **probe**: `rawBody` field on `ProbeResult` — unparsed response text for debugging, or `null` on connection failure.
+- **probe**: 6 new tests covering success and connection-error paths for all three fields.
+
 ## [0.2.0] — 2026-04-04
 
 ### Added
