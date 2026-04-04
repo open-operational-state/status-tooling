@@ -34,7 +34,7 @@ export interface ProbeResult {
     connectionError: boolean;
     /** Response headers, or null if connection failed. */
     headers: Record<string, string> | null;
-    /** Round-trip duration in milliseconds (fetch start → response body read). */
+    /** Round-trip duration in milliseconds (fetch start → response body received). */
     durationMs: number;
     /** Raw response body text, or null if connection failed. */
     rawBody: string | null;
@@ -132,6 +132,7 @@ export async function probe( url: string, options?: ProbeOptions ): Promise<Prob
 
     let body: unknown;
     const rawText = await response.text();
+    const durationMs = Date.now() - startTime;
     try {
         body = JSON.parse( rawText );
     } catch {
@@ -156,7 +157,7 @@ export async function probe( url: string, options?: ProbeOptions ): Promise<Prob
     const snapshot = normalizeSnapshot( parsed as unknown as Record<string, unknown> );
     const validation = validateSnapshot( snapshot );
 
-    const durationMs = Date.now() - startTime;
+
 
     return {
         url: probeUrl,
