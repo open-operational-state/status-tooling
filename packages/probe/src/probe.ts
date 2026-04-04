@@ -7,7 +7,6 @@
 import type { Snapshot, ValidationResult } from '@open-operational-state/types';
 import { normalizeSnapshot, validateSnapshot } from '@open-operational-state/core';
 import { parse } from '@open-operational-state/parser';
-import type { AdapterType } from '@open-operational-state/parser';
 import { discover } from '@open-operational-state/discovery';
 import type { DiscoverResult } from '@open-operational-state/discovery';
 
@@ -33,8 +32,6 @@ export interface ProbeResult {
     contentType: string | null;
     /** True if the connection itself failed (DNS, timeout, etc.). */
     connectionError: boolean;
-    /** Detected adapter format. */
-    detectedFormat: AdapterType | null;
     /** The parsed and normalized Snapshot. */
     snapshot: Snapshot;
     /** Core-model validation result. */
@@ -73,7 +70,7 @@ export async function probe( url: string, options?: ProbeOptions ): Promise<Prob
 
         // If discovery found links, probe the first one instead
         if ( discoveryResult.method === 'link-header' && discoveryResult.links.length > 0 ) {
-            probeUrl = discoveryResult.links[0].href;
+            probeUrl = new URL( discoveryResult.links[0].href, url ).toString();
         } else if ( discoveryResult.method === 'well-known' && discoveryResult.document?.resources ) {
             const resources = discoveryResult.document.resources;
             // Prefer health profile, fall back to first available
@@ -85,50 +82,20 @@ export async function probe( url: string, options?: ProbeOptions ): Promise<Prob
     }
 
     // ── Fetch ──────────────────────────────────────────────────────────
+    let response: Response;
     try {
         const fetchOptions: RequestInit = {};
         if ( options?.headers ) { fetchOptions.headers = options.headers; }
         if ( options?.signal ) { fetchOptions.signal = options.signal; }
 
-        const response = await fetch( probeUrl, fetchOptions );
-        const contentType = response.headers.get( 'content-type' ) || '';
-
-        let body: unknown;
-        const rawText = await response.text();
-        try {
-            body = JSON.parse( rawText );
-        } catch {
-            body = rawText;
+        response = await fetch( probeUrl, fetchOptions );
+    } catch ( err: unknown ) {
+        // Re-throw AbortError so callers can distinguish cancellation
+        if ( err instanceof DOMException && err.name === 'AbortError' ) {
+            throw err;
         }
 
-        const headers: Record<string, string> = {};
-        response.headers.forEach( ( value, key ) => {
-            headers[key] = value;
-        } );
-
-        const parsed = parse( {
-            contentType,
-            body,
-            url: probeUrl,
-            httpStatus: response.status,
-            headers,
-        } );
-
-        const snapshot = normalizeSnapshot( parsed as unknown as Record<string, unknown> );
-        const validation = validateSnapshot( snapshot );
-
-        return {
-            url: probeUrl,
-            httpStatus: response.status,
-            contentType,
-            connectionError: false,
-            detectedFormat: null,
-            snapshot,
-            validation,
-            discovery: discoveryResult,
-        };
-    } catch {
-        // ── Connection failure ─────────────────────────────────────────
+        // ── Connection failure (DNS, timeout, refused, etc.) ──────────
         const parsed = parse( {
             url: probeUrl,
             connectionError: true,
@@ -142,10 +109,48 @@ export async function probe( url: string, options?: ProbeOptions ): Promise<Prob
             httpStatus: null,
             contentType: null,
             connectionError: true,
-            detectedFormat: null,
             snapshot,
             validation,
             discovery: discoveryResult,
         };
     }
+
+    // ── Parse & normalize (outside catch so parse errors propagate) ────
+    const contentType = response.headers.get( 'content-type' ) || '';
+
+    let body: unknown;
+    const rawText = await response.text();
+    try {
+        body = JSON.parse( rawText );
+    } catch {
+        body = rawText;
+    }
+
+    const headers: Record<string, string> = {};
+    response.headers.forEach( ( value, key ) => {
+        headers[key] = value;
+    } );
+
+    const parsed = parse( {
+        contentType,
+        body,
+        url: probeUrl,
+        httpStatus: response.status,
+        headers,
+    } );
+
+    // parse() returns Snapshot, normalizeSnapshot() expects Record<string, unknown>.
+    // The cast is safe — Snapshot is a plain object that satisfies Record<string, unknown>.
+    const snapshot = normalizeSnapshot( parsed as unknown as Record<string, unknown> );
+    const validation = validateSnapshot( snapshot );
+
+    return {
+        url: probeUrl,
+        httpStatus: response.status,
+        contentType,
+        connectionError: false,
+        snapshot,
+        validation,
+        discovery: discoveryResult,
+    };
 }

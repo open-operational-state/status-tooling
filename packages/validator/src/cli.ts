@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 
 /**
  * OOS CLI — Open Operational State command-line tool
@@ -87,7 +86,12 @@ async function cmdValidate( filePath: string, format: string ): Promise<void> {
         exitError( `File not found: ${absPath}` );
     }
 
-    const raw = JSON.parse( readFileSync( absPath, 'utf-8' ) );
+    let raw: Record<string, unknown>;
+    try {
+        raw = JSON.parse( readFileSync( absPath, 'utf-8' ) );
+    } catch {
+        exitError( `Invalid JSON in file: ${absPath}` );
+    }
     const snapshot = normalizeSnapshot( raw );
     const validation = validateSnapshot( snapshot );
     const conformance = checkConformanceLevel( snapshot );
@@ -177,8 +181,12 @@ function cmdInspect( filePath: string, format: string ): void {
     if ( !existsSync( absPath ) ) {
         exitError( `File not found: ${absPath}` );
     }
-
-    const raw = JSON.parse( readFileSync( absPath, 'utf-8' ) );
+    let raw: Record<string, unknown>;
+    try {
+        raw = JSON.parse( readFileSync( absPath, 'utf-8' ) );
+    } catch {
+        exitError( `Invalid JSON in file: ${absPath}` );
+    }
     const snapshot = normalizeSnapshot( raw );
 
     output( snapshot, format );

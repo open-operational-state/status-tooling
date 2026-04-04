@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { probe } from '../probe.js';
 
 // ---------------------------------------------------------------------------
@@ -12,7 +12,7 @@ function mockFetchResponse( body: unknown, status = 200, contentType = 'applicat
     return new Response( JSON.stringify( body ), { status, headers } );
 }
 
-beforeEach( () => {
+afterEach( () => {
     globalThis.fetch = originalFetch;
 } );
 
@@ -36,8 +36,9 @@ describe( 'probe', () => {
         expect( result.connectionError ).toBe( false );
         expect( result.httpStatus ).toBe( 200 );
         expect( result.snapshot ).toBeDefined();
-        expect( result.snapshot.condition ).toBeDefined();
+        expect( result.snapshot.condition ).toBe( 'operational' );
         expect( result.validation ).toBeDefined();
+        expect( result.validation.valid ).toBeDefined();
     } );
 
     it( 'handles connection errors gracefully', async () => {
@@ -64,6 +65,7 @@ describe( 'probe', () => {
         expect( result.connectionError ).toBe( false );
         expect( result.httpStatus ).toBe( 200 );
         expect( result.snapshot.condition ).toBe( 'alive' );
+        expect( result.snapshot.profiles ).toContain( 'liveness' );
     } );
 
     it( 'probes a 500 endpoint', async () => {
@@ -85,5 +87,20 @@ describe( 'probe', () => {
         const result = await probe( 'https://api.example.com/health' );
 
         expect( result.discovery ).toBeNull();
+    } );
+
+    it( 're-throws AbortError on cancellation', async () => {
+        const controller = new AbortController();
+        controller.abort();
+
+        globalThis.fetch = async ( _url: string | URL | Request, init?: RequestInit ) => {
+            if ( init?.signal?.aborted ) {
+                throw new DOMException( 'The operation was aborted.', 'AbortError' );
+            }
+            return mockFetchResponse( { status: 'pass' } );
+        };
+
+        await expect( probe( 'https://api.example.com/health', { signal: controller.signal } ) )
+            .rejects.toThrow( 'The operation was aborted.' );
     } );
 } );

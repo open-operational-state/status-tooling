@@ -31,8 +31,8 @@ const PACKAGES = [
     'parser',
     'emitter',
     'discovery',
-    'validator',
     'probe',
+    'validator',
     'oos',
 ];
 
