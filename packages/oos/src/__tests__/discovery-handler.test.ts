@@ -73,7 +73,7 @@ describe( 'createDiscoveryHandler response', () => {
         const result = await handler( { headers: {} } );
 
         expect( result.status ).toBe( 200 );
-        expect( result.headers['content-type'] ).toBe( 'application/json' );
+        expect( result.headers['Content-Type'] ).toBe( 'application/json' );
 
         const doc = result.body as Record<string, unknown>;
         expect( doc.version ).toBe( '1.0' );
@@ -89,7 +89,7 @@ describe( 'createDiscoveryHandler response', () => {
         } );
 
         const result = await handler( { headers: {} } );
-        expect( result.headers['link'] ).toBe(
+        expect( result.headers['Link'] ).toBe(
             '</.well-known/operational-state>; rel="operational-state"',
         );
     } );
@@ -112,7 +112,7 @@ describe( 'createDiscoveryHandler response', () => {
         } );
 
         const result = await handler( { headers: {} } );
-        expect( result.headers['cache-control'] ).toBe( 'public, max-age=3600' );
+        expect( result.headers['Cache-Control'] ).toBe( 'public, max-age=3600' );
     } );
 
     test( 'is idempotent — returns frozen result', async () => {

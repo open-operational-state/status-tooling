@@ -79,9 +79,9 @@ export function createDiscoveryHandler( config: DiscoveryConfig ): OosHandler {
     const result: HandlerResult = Object.freeze( {
         status: 200,
         headers: {
-            'content-type': 'application/json',
-            'cache-control': 'public, max-age=3600',
-            'link': linkHeader,
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=3600',
+            'Link': linkHeader,
         },
         body: document,
     } );

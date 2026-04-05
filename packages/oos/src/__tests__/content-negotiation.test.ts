@@ -58,6 +58,10 @@ describe( 'negotiateFormat', () => {
         const single: SerializationFormat[] = [ 'service-status' ];
         expect( negotiateFormat( undefined, single ) ).toBe( 'service-status' );
     } );
+
+    test( 'throws when available formats array is empty', () => {
+        expect( () => negotiateFormat( undefined, [] ) ).toThrow( 'must not be empty' );
+    } );
 } );
 
 // ---------------------------------------------------------------------------

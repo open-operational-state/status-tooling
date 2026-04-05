@@ -2,8 +2,8 @@
  * Content Negotiation
  *
  * Parses the Accept header and selects the best serialization format.
- * Simple prefix matching — no q-value parsing. Sufficient for the
- * two OOS media types.
+ * Exact media type matching with wildcard fallback (Accept: any) -- no
+ * q-value parsing. Sufficient for the two OOS media types.
  */
 
 import { Serialization } from './constants.js';
@@ -33,20 +33,25 @@ const MEDIA_MAP: Record<string, SerializationFormat> = {
  *
  * @param accept - The raw Accept header value (may be undefined/empty).
  * @param available - Formats the handler supports, in preference order.
- * @returns The selected format — always one of `available`.
+ * @returns The selected format -- always one of the available formats.
  *
- * ```ts
+ * @example
  * negotiateFormat( 'application/status+json', [ 'health-response', 'service-status' ] );
- * // → 'service-status'
+ * // => 'service-status'
  *
  * negotiateFormat( undefined, [ 'health-response' ] );
- * // → 'health-response'
- * ```
+ * // => 'health-response'
  */
 export function negotiateFormat(
     accept: string | undefined,
     available: SerializationFormat[],
 ): SerializationFormat {
+    if ( available.length === 0 ) {
+        throw new Error(
+            '[oos] negotiateFormat: available formats array must not be empty.',
+        );
+    }
+
     // No Accept header or wildcard → default (first available)
     if ( !accept || accept === '*/*' ) {
         return available[0];

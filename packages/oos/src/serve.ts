@@ -178,7 +178,10 @@ export function serve( config: ServeConfig ): OosHandler {
     let validated = !config.validate;
 
     // ── Pre-compute error fallback ────────────────────────────────────────
-    const defaultMediaType = mediaTypeFor( availableFormats[0] );
+    // Always use health-response for the error path — it's the simplest
+    // format and avoids Content-Type/body mismatch when configured for
+    // service-status or dual formats.
+    const errorMediaType: 'application/health+json' = 'application/health+json';
 
     const errorSnapshot: Snapshot = {
         condition: Condition.UNKNOWN,
@@ -188,7 +191,7 @@ export function serve( config: ServeConfig ): OosHandler {
     const errorFiltered = filterByExposure( errorSnapshot, defaultExposure );
     const errorResult: HandlerResult = Object.freeze( {
         status: 200,
-        headers: suggestHeaders( errorFiltered, defaultMediaType ),
+        headers: suggestHeaders( errorFiltered, errorMediaType ),
         body: emitHealthResponse( errorFiltered ),
     } );
 
@@ -203,12 +206,12 @@ export function serve( config: ServeConfig ): OosHandler {
                 checkResults = await registry.runAll();
                 condition = checkResults.condition;
 
-                // Emit checkFailed hooks for failed/timed-out checks
+                // Emit checkFailed hooks for checks that errored or timed out
                 if ( hooks && checkResults.checks ) {
                     for ( const [ name, entry ] of Object.entries( checkResults.checks ) ) {
-                        if ( entry.condition === 'unknown' ) {
-                            const timedOut = entry.evidence?.type === 'timeout';
-                            hooks.emit( 'checkFailed', { name, entry, timedOut } );
+                        const evidenceType = entry.evidence?.type;
+                        if ( evidenceType === 'error' || evidenceType === 'timeout' ) {
+                            hooks.emit( 'checkFailed', { name, entry, timedOut: evidenceType === 'timeout' } );
                         }
                     }
                 }
