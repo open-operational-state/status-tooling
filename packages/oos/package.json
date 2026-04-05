@@ -61,11 +61,11 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@open-operational-state/core": "^0.2.2",
-    "@open-operational-state/emitter": "^0.2.2",
-    "@open-operational-state/probe": "^0.2.2",
-    "@open-operational-state/types": "^0.2.2",
-    "@open-operational-state/validator": "^0.2.2"
+    "@open-operational-state/core": "^0.3.0",
+    "@open-operational-state/emitter": "^0.3.0",
+    "@open-operational-state/probe": "^0.3.0",
+    "@open-operational-state/types": "^0.3.0",
+    "@open-operational-state/validator": "^0.3.0"
   },
   "devDependencies": {
     "typescript": "^5.8.0"
@@ -78,10 +78,20 @@
     "koa": "^2.0.0"
   },
   "peerDependenciesMeta": {
-    "express": { "optional": true },
-    "fastify": { "optional": true },
-    "hono": { "optional": true },
-    "h3": { "optional": true },
-    "koa": { "optional": true }
+    "express": {
+      "optional": true
+    },
+    "fastify": {
+      "optional": true
+    },
+    "hono": {
+      "optional": true
+    },
+    "h3": {
+      "optional": true
+    },
+    "koa": {
+      "optional": true
+    }
   }
 }
