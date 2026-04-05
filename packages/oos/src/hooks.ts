@@ -128,7 +128,13 @@ export function createHooks(): Hooks {
     }
 
     function off<E extends HookEventName>( event: E, listener: HookListener<E> ): void {
-        getSet( event ).delete( listener );
+        const s = listeners.get( event );
+        if ( s ) {
+            s.delete( listener );
+            if ( s.size === 0 ) {
+                listeners.delete( event );
+            }
+        }
     }
 
     function emit<E extends HookEventName>( event: E, payload: HookEventMap[E] ): void {
@@ -136,7 +142,11 @@ export function createHooks(): Hooks {
         if ( !s ) { return; }
         for ( const fn of s ) {
             try {
-                fn( payload );
+                const result = fn( payload );
+                // Catch rejected promises from async listeners
+                if ( result && typeof ( result as any ).catch === 'function' ) {
+                    ( result as Promise<unknown> ).catch( () => {} );
+                }
             } catch {
                 // Listener errors are isolated — never propagate
             }

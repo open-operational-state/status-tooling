@@ -193,6 +193,19 @@ describe( 'error isolation', () => {
 
         expect( secondCalled ).toBe( true );
     } );
+
+    test( 'async listener rejections do not cause unhandled rejection', () => {
+        const hooks = createHooks();
+
+        hooks.on( 'conditionChanged', async () => { throw new Error( 'async boom' ); } );
+
+        // Should not throw or trigger unhandledRejection
+        expect( () => hooks.emit( 'conditionChanged', {
+            previous: 'operational',
+            current: 'degraded',
+            timestamp: '2026-01-01T00:00:00Z',
+        } ) ).not.toThrow();
+    } );
 } );
 
 // ---------------------------------------------------------------------------

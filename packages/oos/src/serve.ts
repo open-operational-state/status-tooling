@@ -154,8 +154,8 @@ export function serve( config: ServeConfig ): OosHandler {
 
     // ── Handler ───────────────────────────────────────────────────────
     const handler: OosHandler = async ( request ) => {
-        const requestStart = performance.now();
         try {
+            const requestStart = performance.now();
             // Resolve condition
             const condition = typeof conditionProvider === 'function'
                 ? await conditionProvider()
