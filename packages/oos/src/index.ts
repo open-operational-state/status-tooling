@@ -48,6 +48,15 @@ export type {
     RequestHandledEvent,
 } from './hooks.js';
 
+// ── Content negotiation ───────────────────────────────────────────────
+export { negotiateFormat, mediaTypeFor } from './content-negotiation.js';
+export type { SerializationFormat } from './content-negotiation.js';
+
+// ── Discovery ─────────────────────────────────────────────────────────
+export { createDiscoveryHandler } from './discovery-handler.js';
+export type { DiscoveryConfig } from './discovery-handler.js';
+export { discoveryLinkHeader } from './discovery-middleware.js';
+
 // ── Exposure filtering ────────────────────────────────────────────────
 export { filterByExposure } from './exposure.js';
 
