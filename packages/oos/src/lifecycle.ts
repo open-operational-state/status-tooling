@@ -16,7 +16,6 @@
  */
 
 import { Condition } from './constants.js';
-import type { ConditionValue } from './constants.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -49,8 +48,8 @@ export interface LifecycleConfig {
 
     /**
      * Process exit code after shutdown completes.
-     * Set to null to skip process.exit() (useful in tests).
-     * Default: 0.
+     * Set to a number to call process.exit() after cleanup.
+     * Default: null (no automatic exit — library-safe).
      */
     exitCode?: number | null;
 }
@@ -114,7 +113,7 @@ export function createLifecycle( config?: LifecycleConfig ): Lifecycle {
 
     const onShutdown = config?.onShutdown;
     const drainDelayMs = config?.drainDelayMs ?? DEFAULT_DRAIN_DELAY_MS;
-    const exitCode = config?.exitCode !== undefined ? config.exitCode : 0;
+    const exitCode = config?.exitCode !== undefined ? config.exitCode : null;
     const handleSignals = config?.handleSignals ?? true;
 
     function markReady(): void {
@@ -147,7 +146,7 @@ export function createLifecycle( config?: LifecycleConfig ): Lifecycle {
             }
 
             // Exit process
-            if ( exitCode !== null && typeof process !== 'undefined' ) {
+            if ( exitCode !== null && typeof process !== 'undefined' && typeof process.exit === 'function' ) {
                 process.exit( exitCode );
             }
         } )();
@@ -167,8 +166,8 @@ export function createLifecycle( config?: LifecycleConfig ): Lifecycle {
     }
 
     // Register signal handlers
-    if ( handleSignals && typeof process !== 'undefined' ) {
-        const handler = () => { shutdown(); };
+    if ( handleSignals && typeof process !== 'undefined' && typeof process.once === 'function' ) {
+        const handler = () => { shutdown().catch( () => {} ); };
         process.once( 'SIGTERM', handler );
         process.once( 'SIGINT', handler );
     }

@@ -6,17 +6,16 @@
  * callback to produce dynamic conditions and populate checks/evidence.
  *
  * Design goals:
- *   - Zero-allocation on the happy path (pre-allocated result objects)
- *   - Parallel execution by default with configurable concurrency
+ *   - Parallel execution — all checks run concurrently
  *   - Per-check timeouts prevent a single slow check from blocking
  *   - Failed/timed-out checks never crash the handler — they degrade
  *     to condition: unknown with evidence explaining the failure
  */
 
-import type { Snapshot, CheckEntry, Timing, Evidence } from '@open-operational-state/types';
+import type { Snapshot, CheckEntry, Evidence } from '@open-operational-state/types';
 import { worstOf } from '@open-operational-state/core';
 import { Condition, Role } from './constants.js';
-import type { ConditionValue, RoleValue } from './constants.js';
+import type { ConditionValue } from './constants.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -35,7 +34,7 @@ export interface CheckConfig {
     /** Human-readable name (used as the key in snapshot.checks). */
     name: string;
     /** Role: component or dependency. */
-    role: RoleValue | string;
+    role: 'component' | 'dependency' | string;
     /** The check function — must resolve within the timeout. */
     check: () => CheckResult | Promise<CheckResult>;
     /** Per-check timeout in milliseconds. Default: 5000. */
@@ -50,6 +49,9 @@ export interface CheckConfig {
 
 /** The check registry instance. */
 export interface CheckRegistry {
+    /** Register a named health check. Throws on duplicate names. */
+    register( config: CheckConfig ): void;
+
     /**
      * Run all registered checks in parallel.
      * Returns the aggregated condition and the checks map.
@@ -110,12 +112,12 @@ const DEFAULT_TIMEOUT_MS = 5000;
  * const handler = serve( {
  *     subject: { id: 'my-api' },
  *     condition: registry.conditionProvider,
- *     checks: registry,
  * } );
  * ```
  */
-export function createCheckRegistry(): CheckRegistry & { register: ( config: CheckConfig ) => void } {
+export function createCheckRegistry(): CheckRegistry {
     const registeredChecks: CheckConfig[] = [];
+    const registeredNames = new Set<string>();
 
     function register( config: CheckConfig ): void {
         if ( !config.name ) {
@@ -124,6 +126,10 @@ export function createCheckRegistry(): CheckRegistry & { register: ( config: Che
         if ( !config.check ) {
             throw new Error( `[oos] Check "${config.name}" requires a check function.` );
         }
+        if ( registeredNames.has( config.name ) ) {
+            throw new Error( `[oos] Check "${config.name}" is already registered.` );
+        }
+        registeredNames.add( config.name );
         registeredChecks.push( config );
     }
 
@@ -143,13 +149,16 @@ export function createCheckRegistry(): CheckRegistry & { register: ( config: Che
             } ),
         );
 
-        for ( const settled of results ) {
+        for ( let i = 0; i < results.length; i++ ) {
+            const settled = results[i];
             if ( settled.status === 'fulfilled' ) {
                 const { cfg, result } = settled.value;
                 const now = new Date().toISOString();
 
                 entries[cfg.name] = {
                     condition: result.condition,
+                    // CheckEntry.role is typed as 'component' | 'dependency';
+                    // extension roles pass through for forward compatibility.
                     role: cfg.role as 'component' | 'dependency',
                     timing: { observed: now },
                     ...( result.evidence ? { evidence: result.evidence } : {} ),
@@ -162,7 +171,7 @@ export function createCheckRegistry(): CheckRegistry & { register: ( config: Che
             } else {
                 // Promise.allSettled rejection — should not happen since
                 // runWithTimeout catches, but defensive
-                const cfg = registeredChecks[results.indexOf( settled )];
+                const cfg = registeredChecks[i];
                 const name = cfg?.name ?? 'unknown';
                 entries[name] = {
                     condition: Condition.UNKNOWN,

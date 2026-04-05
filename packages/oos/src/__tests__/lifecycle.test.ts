@@ -53,6 +53,17 @@ describe( 'phase transitions', () => {
         expect( lifecycle.phase ).toBe( 'shutting-down' );
         await promise;
     } );
+
+    test( 'can shutdown directly from initializing phase', async () => {
+        const lifecycle = createLifecycle( {
+            handleSignals: false,
+            exitCode: null,
+            drainDelayMs: 0,
+        } );
+        expect( lifecycle.phase ).toBe( 'initializing' );
+        await lifecycle.shutdown();
+        expect( lifecycle.phase ).toBe( 'shutting-down' );
+    } );
 } );
 
 // ---------------------------------------------------------------------------

@@ -31,6 +31,13 @@ describe( 'registration', () => {
             check: () => ( { condition: Condition.OPERATIONAL } ),
         } ) ).not.toThrow();
     } );
+
+    test( 'throws on duplicate check names', () => {
+        const registry = createCheckRegistry();
+        registry.register( { name: 'db', role: Role.DEPENDENCY, check: () => ( { condition: Condition.OPERATIONAL } ) } );
+        expect( () => registry.register( { name: 'db', role: Role.DEPENDENCY, check: () => ( { condition: Condition.OPERATIONAL } ) } ) )
+            .toThrow( 'already registered' );
+    } );
 } );
 
 // ---------------------------------------------------------------------------
