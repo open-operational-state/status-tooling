@@ -11,11 +11,16 @@
 
 import type { Snapshot, Timing } from '@open-operational-state/types';
 import { emitHealthResponse } from '@open-operational-state/emitter';
+import { emitServiceStatus } from '@open-operational-state/emitter';
 import { suggestHttpStatus, suggestHeaders } from '@open-operational-state/emitter';
 import { Condition, Exposure, Profile, ProvenanceType, Serialization } from './constants.js';
 import type { ExposureValue, ProfileValue, ConditionValue } from './constants.js';
 import { filterByExposure } from './exposure.js';
 import type { Hooks } from './hooks.js';
+import type { CheckRegistry } from './check-registry.js';
+import { negotiateFormat, mediaTypeFor } from './content-negotiation.js';
+import type { SerializationFormat } from './content-negotiation.js';
+import { discoveryLinkHeader } from './discovery-middleware.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -87,6 +92,28 @@ export interface ServeConfig {
 
     /** Observable hooks instance for event emission. */
     hooks?: Hooks;
+
+    /**
+     * Serialization format(s).  Default: 'health-response'.
+     * When an array is provided, the handler uses content negotiation
+     * based on the request's Accept header.
+     */
+    serialization?: SerializationFormat | SerializationFormat[];
+
+    /**
+     * Check registry for dynamic health checks.
+     * When provided, runs all registered checks on each request,
+     * uses the aggregated condition, and merges check results into
+     * the snapshot.
+     */
+    registry?: CheckRegistry;
+
+    /**
+     * Path to the discovery endpoint. When set, responses include
+     * a Link header advertising the discovery endpoint.
+     * Set to `false` to disable.  Default: `undefined` (no Link header).
+     */
+    discoveryPath?: string | false;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,13 +143,27 @@ export function serve( config: ServeConfig ): OosHandler {
     const authenticatedExposure = config.authenticatedExposure;
     const isAuthenticated = config.isAuthenticated;
     const provenance = config.provenance ?? ProvenanceType.SELF_REPORTED;
-    const conditionProvider = config.condition ?? Condition.OPERATIONAL;
+    const conditionProvider = config.registry
+        ? config.registry.conditionProvider
+        : ( config.condition ?? Condition.OPERATIONAL );
     const hooks = config.hooks;
+    const registry = config.registry;
+
+    // ── Serialization format(s) ──────────────────────────────────────────
+    const availableFormats: SerializationFormat[] = Array.isArray( config.serialization )
+        ? config.serialization
+        : [ config.serialization ?? 'health-response' ];
+    const useNegotiation = availableFormats.length > 1;
+
+    // ── Discovery link header ───────────────────────────────────────────
+    const linkHeader = config.discoveryPath !== false && config.discoveryPath
+        ? discoveryLinkHeader( config.discoveryPath )
+        : undefined;
 
     // ── Condition tracking for transition detection ────────────────────
     let lastCondition: string | null = null;
 
-    // ── Pre-compute static subject ────────────────────────────────────
+    // ── Pre-compute static subject ────────────────────────────────────────
     const subject = {
         id: config.subject.id,
         ...( config.subject.description
@@ -133,12 +174,11 @@ export function serve( config: ServeConfig ): OosHandler {
             : {} ),
     };
 
-    // ── Self-validation on first invocation ───────────────────────────
+    // ── Self-validation on first invocation ─────────────────────────────
     let validated = !config.validate;
 
-    // ── Pre-compute error fallback (never changes, zero per-request alloc) ──
-    const mediaType = Serialization.HEALTH_RESPONSE_MEDIA_TYPE as
-        'application/health+json' | 'application/status+json';
+    // ── Pre-compute error fallback ────────────────────────────────────────
+    const defaultMediaType = mediaTypeFor( availableFormats[0] );
 
     const errorSnapshot: Snapshot = {
         condition: Condition.UNKNOWN,
@@ -148,7 +188,7 @@ export function serve( config: ServeConfig ): OosHandler {
     const errorFiltered = filterByExposure( errorSnapshot, defaultExposure );
     const errorResult: HandlerResult = Object.freeze( {
         status: 200,
-        headers: suggestHeaders( errorFiltered, mediaType ),
+        headers: suggestHeaders( errorFiltered, defaultMediaType ),
         body: emitHealthResponse( errorFiltered ),
     } );
 
@@ -156,10 +196,27 @@ export function serve( config: ServeConfig ): OosHandler {
     const handler: OosHandler = async ( request ) => {
         try {
             const requestStart = performance.now();
-            // Resolve condition
-            const condition = typeof conditionProvider === 'function'
-                ? await conditionProvider()
-                : conditionProvider;
+            // Resolve condition (registry or provider)
+            let condition: string;
+            let checkResults: Awaited<ReturnType<CheckRegistry['runAll']>> | null = null;
+            if ( registry ) {
+                checkResults = await registry.runAll();
+                condition = checkResults.condition;
+
+                // Emit checkFailed hooks for failed/timed-out checks
+                if ( hooks && checkResults.checks ) {
+                    for ( const [ name, entry ] of Object.entries( checkResults.checks ) ) {
+                        if ( entry.condition === 'unknown' ) {
+                            const timedOut = entry.evidence?.type === 'timeout';
+                            hooks.emit( 'checkFailed', { name, entry, timedOut } );
+                        }
+                    }
+                }
+            } else {
+                condition = typeof conditionProvider === 'function'
+                    ? await conditionProvider()
+                    : conditionProvider;
+            }
 
             // Build timing
             const now = new Date().toISOString();
@@ -169,13 +226,18 @@ export function serve( config: ServeConfig ): OosHandler {
             };
 
             // Build snapshot (full, pre-filter)
-            const snapshot: Snapshot = {
+            let snapshot: Snapshot = {
                 condition,
                 profiles: [ ...profiles ],
                 subject,
                 timing,
                 provenance,
             };
+
+            // Merge check results into snapshot if registry is active
+            if ( registry && checkResults ) {
+                snapshot = registry.enrichSnapshot( snapshot, checkResults );
+            }
 
             // Determine exposure tier
             let exposure = defaultExposure;
@@ -195,10 +257,23 @@ export function serve( config: ServeConfig ): OosHandler {
                 selfValidate( filtered, profiles as string[] );
             }
 
+            // Content negotiation
+            const format = useNegotiation
+                ? negotiateFormat( request.headers.accept, availableFormats )
+                : availableFormats[0];
+            const selectedMediaType = mediaTypeFor( format );
+
             // Serialize
-            const body = emitHealthResponse( filtered );
+            const body = format === 'service-status'
+                ? emitServiceStatus( filtered )
+                : emitHealthResponse( filtered );
             const status = suggestHttpStatus( filtered.condition );
-            const headers = suggestHeaders( filtered, mediaType );
+            const headers = suggestHeaders( filtered, selectedMediaType );
+
+            // Add discovery Link header if configured
+            if ( linkHeader ) {
+                headers['link'] = linkHeader;
+            }
 
             // Emit hooks
             if ( hooks ) {

@@ -394,3 +394,160 @@ describe( 'observable hooks', () => {
         expect( result.status ).toBe( 200 );
     } );
 } );
+
+// ---------------------------------------------------------------------------
+// Content negotiation integration
+// ---------------------------------------------------------------------------
+
+describe( 'content negotiation', () => {
+    test( 'defaults to health-response format', async () => {
+        const handler = serve( {
+            subject: { id: 'test' },
+            exposure: Exposure.CONDITION_ONLY,
+        } );
+        const result = await handler( { headers: {} } );
+        expect( result.headers['Content-Type'] ).toBe( 'application/health+json' );
+    } );
+
+    test( 'serves service-status when Accept header matches', async () => {
+        const handler = serve( {
+            subject: { id: 'test' },
+            serialization: [ 'health-response', 'service-status' ],
+            exposure: Exposure.CONDITION_ONLY,
+        } );
+        const result = await handler( {
+            headers: { accept: 'application/status+json' },
+        } );
+        expect( result.headers['Content-Type'] ).toBe( 'application/status+json' );
+    } );
+
+    test( 'falls back to default when Accept does not match', async () => {
+        const handler = serve( {
+            subject: { id: 'test' },
+            serialization: [ 'health-response', 'service-status' ],
+            exposure: Exposure.CONDITION_ONLY,
+        } );
+        const result = await handler( {
+            headers: { accept: 'text/html' },
+        } );
+        expect( result.headers['Content-Type'] ).toBe( 'application/health+json' );
+    } );
+
+    test( 'single format ignores Accept header', async () => {
+        const handler = serve( {
+            subject: { id: 'test' },
+            serialization: 'service-status',
+            exposure: Exposure.CONDITION_ONLY,
+        } );
+        const result = await handler( {
+            headers: { accept: 'application/health+json' },
+        } );
+        // Single format — no negotiation, always uses configured format
+        expect( result.headers['Content-Type'] ).toBe( 'application/status+json' );
+    } );
+} );
+
+// ---------------------------------------------------------------------------
+// Registry integration
+// ---------------------------------------------------------------------------
+
+describe( 'registry integration', () => {
+    test( 'uses registry condition and enriches snapshot', async () => {
+        const { createCheckRegistry } = await import( '../check-registry.js' );
+        const registry = createCheckRegistry();
+        registry.register( {
+            name: 'db',
+            role: 'dependency',
+            check: () => ( { condition: 'degraded' } ),
+        } );
+
+        const handler = serve( {
+            subject: { id: 'test' },
+            registry,
+            exposure: Exposure.COMPONENT_LEVEL,
+        } );
+
+        const result = await handler( { headers: {} } );
+        const body = result.body as Record<string, unknown>;
+        expect( body.condition ).toBe( 'degraded' );
+        expect( body.checks ).toBeDefined();
+    } );
+
+    test( 'registry overrides condition provider', async () => {
+        const { createCheckRegistry } = await import( '../check-registry.js' );
+        const registry = createCheckRegistry();
+        registry.register( {
+            name: 'ok-check',
+            role: 'component',
+            check: () => ( { condition: 'operational' } ),
+        } );
+
+        const handler = serve( {
+            subject: { id: 'test' },
+            condition: Condition.DOWN,
+            registry,
+            exposure: Exposure.CONDITION_ONLY,
+        } );
+
+        const result = await handler( { headers: {} } );
+        const body = result.body as Record<string, unknown>;
+        // Registry wins over static condition
+        expect( body.condition ).toBe( 'operational' );
+    } );
+
+    test( 'emits checkFailed hooks for failed checks', async () => {
+        const { createCheckRegistry } = await import( '../check-registry.js' );
+        const { createHooks } = await import( '../hooks.js' );
+
+        const registry = createCheckRegistry();
+        registry.register( {
+            name: 'failing-check',
+            role: 'dependency',
+            check: () => { throw new Error( 'db down' ); },
+        } );
+
+        const hooks = createHooks();
+        const failures: Array<{ name: string }> = [];
+        hooks.on( 'checkFailed', ( e ) => failures.push( e ) );
+
+        const handler = serve( {
+            subject: { id: 'test' },
+            registry,
+            hooks,
+            exposure: Exposure.CONDITION_ONLY,
+        } );
+
+        await handler( { headers: {} } );
+        expect( failures ).toHaveLength( 1 );
+        expect( failures[0].name ).toBe( 'failing-check' );
+    } );
+} );
+
+// ---------------------------------------------------------------------------
+// Discovery link header integration
+// ---------------------------------------------------------------------------
+
+describe( 'discovery link header', () => {
+    test( 'adds Link header when discoveryPath is set', async () => {
+        const handler = serve( {
+            subject: { id: 'test' },
+            discoveryPath: '/.well-known/operational-state',
+            exposure: Exposure.CONDITION_ONLY,
+        } );
+
+        const result = await handler( { headers: {} } );
+        expect( result.headers['link'] ).toBe(
+            '</.well-known/operational-state>; rel="operational-state"',
+        );
+    } );
+
+    test( 'omits Link header when discoveryPath is not set', async () => {
+        const handler = serve( {
+            subject: { id: 'test' },
+            exposure: Exposure.CONDITION_ONLY,
+        } );
+
+        const result = await handler( { headers: {} } );
+        expect( result.headers['link'] ).toBeUndefined();
+    } );
+} );
