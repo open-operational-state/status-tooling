@@ -5,6 +5,27 @@ The developer-facing package for [Open Operational State](https://github.com/ope
 [![npm](https://img.shields.io/npm/v/@open-operational-state/oos)](https://www.npmjs.com/package/@open-operational-state/oos)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](../../LICENSE)
 
+## Table of Contents
+
+- [Install](#install)
+- [Producer SDK](#producer-sdk)
+  - [Quick Start](#quick-start)
+  - [Framework Adapters](#framework-adapters)
+  - [Condition Providers](#condition-providers)
+  - [Exposure Tiers](#exposure-tiers)
+  - [Content Negotiation](#content-negotiation)
+  - [Observable Hooks](#observable-hooks)
+  - [Discovery](#discovery)
+  - [Lifecycle Management](#lifecycle-management)
+  - [Named Constants](#named-constants)
+- [CLI](#cli)
+- [Consumer SDK](#consumer-sdk)
+  - [Probing](#probing)
+  - [Validation](#validation)
+  - [Format Auto-Detection](#format-auto-detection)
+- [What this package includes](#what-this-package-includes)
+- [License](#license)
+
 ## Install
 
 ```bash
@@ -217,7 +238,11 @@ npx @open-operational-state/oos probe https://api.example.com/health
 
 ---
 
-## Consumer API
+## Consumer SDK
+
+Probe, parse, validate, and discover operational state endpoints.
+
+### Probing
 
 ```js
 import { probe } from '@open-operational-state/oos';
@@ -227,7 +252,32 @@ const result = await probe( 'https://api.example.com/health' );
 console.log( result.snapshot.condition );  // 'operational'
 console.log( result.httpStatus );          // 200
 console.log( result.validation.valid );    // true
+console.log( result.headers );             // response headers
+console.log( result.durationMs );          // round-trip timing
 ```
+
+`probe()` handles the full pipeline: fetch, format auto-detection, parsing, normalization, and validation in a single call. Supports discovery follow and cancellation via `AbortSignal`.
+
+### Validation
+
+```js
+import { validateSnapshot } from '@open-operational-state/core';
+
+const errors = validateSnapshot( snapshot );
+// []: valid, or [{ path, message }]: issues found
+```
+
+### Format Auto-Detection
+
+The consumer SDK automatically detects and parses:
+
+| Format | Content-Type |
+|---|---|
+| OOS Native (health) | `application/health+json` |
+| OOS Native (status) | `application/status+json` |
+| Health Check Draft | `application/json` (draft-inadarei) |
+| Spring Boot Actuator | `application/json` (Spring format) |
+| Plain HTTP | any (alive/unreachable from connection result) |
 
 ---
 
@@ -236,7 +286,7 @@ console.log( result.validation.valid );    // true
 `@open-operational-state/oos` is an umbrella package that bundles:
 
 - **Producer SDK** — `serve()`, check registry, hooks, content negotiation, discovery, lifecycle, exposure filtering, framework adapters
-- **Consumer API** — `probe()` for programmatic endpoint probing
+- **Consumer SDK** — `probe()` endpoint probing, format auto-detection, validation, discovery follow
 - **CLI** — `oos` binary for validation, probing, and conformance testing
 
 You don't need to install the lower-level packages separately.

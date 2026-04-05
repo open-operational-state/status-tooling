@@ -25,6 +25,24 @@ npx oos probe https://api.example.com/health
 
 ## Programmatic Usage
 
+### Producer — expose operational state
+
+```js
+import { serve } from '@open-operational-state/oos';
+import { toWebHandler } from '@open-operational-state/oos/web';
+
+const handler = serve( {
+    subject: { id: 'my-api', version: '1.2.0' },
+} );
+
+// Bun / Deno / Cloudflare Workers
+export default { fetch: toWebHandler( handler ) };
+```
+
+See the [oos README](packages/oos/README.md) for check registries, hooks, content negotiation, discovery, and all 7 framework adapters.
+
+### Consumer SDK — probe any endpoint
+
 ```js
 import { probe } from '@open-operational-state/oos';
 
@@ -32,7 +50,7 @@ const result = await probe( 'https://api.example.com/health' );
 console.log( result.snapshot.condition ); // 'operational'
 ```
 
-Or use the lower-level packages directly:
+### Lower-level packages
 
 ```js
 import { normalizeSnapshot } from '@open-operational-state/core';
@@ -60,14 +78,14 @@ Future implementations in other languages (Go, PHP, etc.) will live in separate 
 
 | Package | Purpose | Version |
 |---|---|---|
-| [`@open-operational-state/oos`](packages/oos/) | Developer-facing package and CLI | 0.2.0 |
-| [`@open-operational-state/probe`](packages/probe/) | Endpoint probing — fetch, detect, parse, normalize | 0.2.0 |
-| [`@open-operational-state/types`](packages/types/) | Canonical TypeScript types for the core model | 0.2.0 |
-| [`@open-operational-state/core`](packages/core/) | Core model logic, normalization, validation | 0.2.0 |
-| [`@open-operational-state/parser`](packages/parser/) | Response parsers and format adapters | 0.2.0 |
-| [`@open-operational-state/emitter`](packages/emitter/) | Wire format emitters | 0.2.0 |
-| [`@open-operational-state/validator`](packages/validator/) | Conformance validation and fixture runner | 0.2.0 |
-| [`@open-operational-state/discovery`](packages/discovery/) | Discovery client (Link headers, well-known) | 0.2.0 |
+| [`@open-operational-state/oos`](packages/oos/) | Developer-facing package — producer SDK, CLI, programmatic API | 0.3.0 |
+| [`@open-operational-state/probe`](packages/probe/) | Endpoint probing — fetch, detect, parse, normalize | 0.3.0 |
+| [`@open-operational-state/types`](packages/types/) | Canonical TypeScript types for the core model | 0.3.0 |
+| [`@open-operational-state/core`](packages/core/) | Core model logic, normalization, validation | 0.3.0 |
+| [`@open-operational-state/parser`](packages/parser/) | Response parsers and format adapters | 0.3.0 |
+| [`@open-operational-state/emitter`](packages/emitter/) | Wire format emitters | 0.3.0 |
+| [`@open-operational-state/validator`](packages/validator/) | Conformance validation and fixture runner | 0.3.0 |
+| [`@open-operational-state/discovery`](packages/discovery/) | Discovery client (Link headers, well-known) | 0.3.0 |
 
 ## Development
 
@@ -128,7 +146,7 @@ This tooling implements the six-layer architecture defined in the [status-spec](
 - **`discovery`** — discovery client for locating operational-state resources (Layer 5)
 - **`probe`** — end-to-end endpoint probing (orchestrates parser, core, discovery)
 - **`validator`** — conformance validation against profiles and serializations (cross-cutting)
-- **`oos`** — developer-facing umbrella package and CLI entrypoint
+- **`oos`** — developer-facing umbrella: producer SDK (`serve()`, hooks, check registry, content negotiation, discovery, lifecycle), CLI, and programmatic consumer API
 
 ## Dependency Graph
 
@@ -140,7 +158,7 @@ emitter       ← core, types
 discovery     ← types
 probe         ← types, core, parser, discovery
 validator     ← types, core, parser, probe
-oos           ← probe, validator
+oos           ← types, core, emitter, probe, validator
 ```
 
 ## Testing
