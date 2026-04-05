@@ -15,6 +15,7 @@ import { suggestHttpStatus, suggestHeaders } from '@open-operational-state/emitt
 import { Condition, Exposure, Profile, ProvenanceType, Serialization } from './constants.js';
 import type { ExposureValue, ProfileValue, ConditionValue } from './constants.js';
 import { filterByExposure } from './exposure.js';
+import type { Hooks } from './hooks.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -83,6 +84,9 @@ export interface ServeConfig {
 
     /** Whether to validate output on first request.  Default: false. */
     validate?: boolean;
+
+    /** Observable hooks instance for event emission. */
+    hooks?: Hooks;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +117,10 @@ export function serve( config: ServeConfig ): OosHandler {
     const isAuthenticated = config.isAuthenticated;
     const provenance = config.provenance ?? ProvenanceType.SELF_REPORTED;
     const conditionProvider = config.condition ?? Condition.OPERATIONAL;
+    const hooks = config.hooks;
+
+    // ── Condition tracking for transition detection ────────────────────
+    let lastCondition: string | null = null;
 
     // ── Pre-compute static subject ────────────────────────────────────
     const subject = {
@@ -146,6 +154,7 @@ export function serve( config: ServeConfig ): OosHandler {
 
     // ── Handler ───────────────────────────────────────────────────────
     const handler: OosHandler = async ( request ) => {
+        const requestStart = performance.now();
         try {
             // Resolve condition
             const condition = typeof conditionProvider === 'function'
@@ -190,6 +199,30 @@ export function serve( config: ServeConfig ): OosHandler {
             const body = emitHealthResponse( filtered );
             const status = suggestHttpStatus( filtered.condition );
             const headers = suggestHeaders( filtered, mediaType );
+
+            // Emit hooks
+            if ( hooks ) {
+                const now2 = new Date().toISOString();
+
+                // Condition transition detection
+                if ( lastCondition !== null && lastCondition !== condition ) {
+                    hooks.emit( 'conditionChanged', {
+                        previous: lastCondition,
+                        current: condition,
+                        timestamp: now2,
+                    } );
+                }
+                lastCondition = condition;
+
+                hooks.emit( 'requestHandled', {
+                    condition,
+                    status,
+                    durationMs: Math.round( performance.now() - requestStart ),
+                    timestamp: now2,
+                } );
+            } else {
+                lastCondition = condition;
+            }
 
             return { status, headers, body };
         } catch {
