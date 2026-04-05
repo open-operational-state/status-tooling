@@ -272,7 +272,7 @@ export function serve( config: ServeConfig ): OosHandler {
 
             // Add discovery Link header if configured
             if ( linkHeader ) {
-                headers['link'] = linkHeader;
+                headers['Link'] = linkHeader;
             }
 
             // Emit hooks

@@ -8,7 +8,7 @@
  * compose with the same adapters.
  */
 
-import type { DiscoveryDocument, ResourceEntry, Subject } from '@open-operational-state/types';
+import type { DiscoveryDocument, ResourceEntry } from '@open-operational-state/types';
 import type { OosHandler, OosRequest, HandlerResult } from './serve.js';
 import { discoveryLinkHeader } from './discovery-middleware.js';
 
@@ -74,7 +74,6 @@ export function createDiscoveryHandler( config: DiscoveryConfig ): OosHandler {
         resources: config.resources,
     };
 
-    const body = JSON.stringify( document );
     const linkHeader = discoveryLinkHeader();
 
     const result: HandlerResult = Object.freeze( {

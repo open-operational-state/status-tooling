@@ -536,7 +536,7 @@ describe( 'discovery link header', () => {
         } );
 
         const result = await handler( { headers: {} } );
-        expect( result.headers['link'] ).toBe(
+        expect( result.headers['Link'] ).toBe(
             '</.well-known/operational-state>; rel="operational-state"',
         );
     } );
@@ -548,6 +548,6 @@ describe( 'discovery link header', () => {
         } );
 
         const result = await handler( { headers: {} } );
-        expect( result.headers['link'] ).toBeUndefined();
+        expect( result.headers['Link'] ).toBeUndefined();
     } );
 } );
