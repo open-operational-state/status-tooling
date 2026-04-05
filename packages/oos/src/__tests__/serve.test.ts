@@ -288,3 +288,109 @@ describe( 'error handling', () => {
         expect( ( result.body as Record<string, unknown> ).condition ).toBe( 'unknown' );
     } );
 } );
+
+// ---------------------------------------------------------------------------
+// Observable hooks integration
+// ---------------------------------------------------------------------------
+
+describe( 'observable hooks', () => {
+    test( 'emits requestHandled on every invocation', async () => {
+        const { createHooks } = await import( '../hooks.js' );
+        const hooks = createHooks();
+        const events: Array<{ condition: string; status: number }> = [];
+
+        hooks.on( 'requestHandled', ( e ) => events.push( e ) );
+
+        const handler = serve( {
+            subject: { id: 'test' },
+            condition: Condition.OPERATIONAL,
+            hooks,
+        } );
+
+        await handler( { headers: {} } );
+        await handler( { headers: {} } );
+
+        expect( events ).toHaveLength( 2 );
+        expect( events[0].condition ).toBe( 'operational' );
+        expect( events[0].status ).toBe( 200 );
+        expect( events[1].condition ).toBe( 'operational' );
+    } );
+
+    test( 'emits conditionChanged on transition', async () => {
+        const { createHooks } = await import( '../hooks.js' );
+        const hooks = createHooks();
+        const transitions: Array<{ previous: string; current: string }> = [];
+
+        hooks.on( 'conditionChanged', ( e ) => transitions.push( e ) );
+
+        let currentCondition: string = Condition.OPERATIONAL;
+        const handler = serve( {
+            subject: { id: 'test' },
+            condition: () => currentCondition,
+            hooks,
+        } );
+
+        // First call — sets baseline, no transition
+        await handler( { headers: {} } );
+        expect( transitions ).toHaveLength( 0 );
+
+        // Second call — same condition, no transition
+        await handler( { headers: {} } );
+        expect( transitions ).toHaveLength( 0 );
+
+        // Third call — condition changed
+        currentCondition = Condition.DEGRADED;
+        await handler( { headers: {} } );
+        expect( transitions ).toHaveLength( 1 );
+        expect( transitions[0].previous ).toBe( 'operational' );
+        expect( transitions[0].current ).toBe( 'degraded' );
+    } );
+
+    test( 'does not emit conditionChanged on first request', async () => {
+        const { createHooks } = await import( '../hooks.js' );
+        const hooks = createHooks();
+        const transitions: unknown[] = [];
+
+        hooks.on( 'conditionChanged', ( e ) => transitions.push( e ) );
+
+        const handler = serve( {
+            subject: { id: 'test' },
+            condition: Condition.DOWN,
+            hooks,
+        } );
+
+        await handler( { headers: {} } );
+        expect( transitions ).toHaveLength( 0 );
+    } );
+
+    test( 'requestHandled includes durationMs', async () => {
+        const { createHooks } = await import( '../hooks.js' );
+        const hooks = createHooks();
+        let durationMs = -1;
+
+        hooks.on( 'requestHandled', ( e ) => { durationMs = e.durationMs; } );
+
+        const handler = serve( {
+            subject: { id: 'test' },
+            hooks,
+        } );
+
+        await handler( { headers: {} } );
+        expect( durationMs ).toBeGreaterThanOrEqual( 0 );
+    } );
+
+    test( 'hook listener errors do not crash the handler', async () => {
+        const { createHooks } = await import( '../hooks.js' );
+        const hooks = createHooks();
+
+        hooks.on( 'requestHandled', () => { throw new Error( 'bad listener' ); } );
+
+        const handler = serve( {
+            subject: { id: 'test' },
+            hooks,
+        } );
+
+        const result = await handler( { headers: {} } );
+        expect( result.status ).toBe( 200 );
+    } );
+} );

@@ -36,6 +36,18 @@ export type {
     LifecyclePhase,
 } from './lifecycle.js';
 
+// ── Observable hooks ──────────────────────────────────────────────────
+export { createHooks } from './hooks.js';
+export type {
+    Hooks,
+    HookEventMap,
+    HookEventName,
+    HookListener,
+    ConditionChangedEvent,
+    CheckFailedEvent,
+    RequestHandledEvent,
+} from './hooks.js';
+
 // ── Exposure filtering ────────────────────────────────────────────────
 export { filterByExposure } from './exposure.js';
 
