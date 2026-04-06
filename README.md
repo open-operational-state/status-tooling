@@ -167,6 +167,8 @@ validator     ← types, core, parser, probe
 oos           ← types, core, emitter, probe, validator
 ```
 
+**Zero external dependencies.** Every arrow above is an internal monorepo reference — no third-party packages are installed at runtime. The only `devDependency` is TypeScript for type-checking.
+
 ## Testing
 
 Tests are fixture-driven where applicable. Conformance fixtures are read directly from the sibling `status-conformance` repository:
