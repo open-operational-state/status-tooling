@@ -24,6 +24,14 @@ Target: **< 1ms overhead** on hot path. Health endpoints are polled every 5–10
 
 Benchmark results would be published in the README and run in CI to catch regressions.
 
+### Discovery Caching
+
+The `discover()` client and `probe( url, { followDiscovery: true })` make fresh HTTP requests (HEAD + GET well-known) on every call. For consumers polling on short intervals (e.g., every 60 seconds), this triples request volume unnecessarily since discovery documents rarely change.
+
+**Consumer side:** Add an optional TTL-based in-memory cache to `discover()` — keyed by base URL, defaulting to something like 5 minutes. Consumers using `probe()` with `followDiscovery` would automatically benefit.
+
+**Producer side:** The `createDiscoveryHandler()` should set `Cache-Control: public, max-age=3600` (or configurable) on discovery responses, allowing CDNs and HTTP caches to serve repeat requests without hitting the origin.
+
 ---
 
 ## CLI & Developer Experience
