@@ -28,9 +28,9 @@ Benchmark results would be published in the README and run in CI to catch regres
 
 The `discover()` client and `probe( url, { followDiscovery: true })` make fresh HTTP requests (HEAD + GET well-known) on every call. For consumers polling on short intervals (e.g., every 60 seconds), this triples request volume unnecessarily since discovery documents rarely change.
 
-**Consumer side:** Add an optional TTL-based in-memory cache to `discover()` — keyed by base URL, defaulting to something like 5 minutes. Consumers using `probe()` with `followDiscovery` would automatically benefit.
+**Consumer side:** Add an optional TTL-based cache to `discover()` — keyed by base URL, defaulting to something like 5 minutes. The cache adapter should be pluggable via a simple interface (`{ get(key): Promise<T | null>, set(key, value, ttlMs): Promise<void> }`) so consumers can swap in Redis, Cloudflare KV, or any external store. Default ships with a zero-dependency in-memory implementation (Map + expiry). Consumers using `probe()` with `followDiscovery` would automatically benefit.
 
-**Producer side:** The `createDiscoveryHandler()` should set `Cache-Control: public, max-age=3600` (or configurable) on discovery responses, allowing CDNs and HTTP caches to serve repeat requests without hitting the origin.
+**Producer side:** The `createDiscoveryHandler()` should set `Cache-Control: public, max-age=3600` (or configurable) on discovery responses, letting CDNs and HTTP caches serve repeat requests without hitting the origin. No SDK-level caching needed — this is purely an HTTP header concern.
 
 ---
 
